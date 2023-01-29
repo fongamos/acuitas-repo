@@ -124,3 +124,5 @@ ggsave(linear_regression_combined(df, "spleen"), filename = "~/acuitas/export/li
 
 
 
+
+
