@@ -165,8 +165,6 @@ ggsave(filename="~/acuitas/export/ACUTH16_cibersortx.png", width = 16, height = 
 
 
 
-
-
 # QC
 signature_matrix <- read.delim("~/acuitas/amos files/cibersort/signature_matrix.txt")
 length(unique(signature_matrix$NAME)) == nrow(signature_matrix)
