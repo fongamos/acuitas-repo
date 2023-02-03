@@ -29,23 +29,22 @@ names(dose_label) <- c("0.3", "1")
 
 
 
-# create new df for modelling
-model_df <- data.frame(x = df$pKa, y = df$concentration, tissue = df$tissue, dose = df$dose)
 
 # filter by metadata
-model_df <- model_df %>% filter(tissue == "liver" & dose == "1")
+model_df <- df %>% filter(tissue == "liver" & dose == "1")
+model_df <- df %>% filter(tissue == "spleen" & dose == "1")
 
 # generate models
-mod1 <- lm(y ~ splines::ns(x, 1), data = model_df)
-mod2 <- lm(y ~ splines::ns(x, 2), data = model_df)
-mod3 <- lm(y ~ splines::ns(x, 3), data = model_df)
-mod4 <- lm(y ~ splines::ns(x, 4), data = model_df)
-mod5 <- lm(y ~ splines::ns(x, 5), data = model_df)
+mod1 <- lm(concentration ~ poly(pKa, 1, raw=T), data = model_df)
+mod2 <- lm(concentration ~ poly(pKa, 2), data = model_df)
+mod3 <- lm(concentration ~ poly(pKa, 3), data = model_df)
+mod4 <- lm(concentration ~ poly(pKa, 4), data = model_df)
+mod5 <- lm(concentration ~ poly(pKa, 5), data = model_df)
 
 # grid search
 grid <- model_df %>%
-  data_grid(x = seq_range(x, n = 50, expand = 0.1)) %>%
-  gather_predictions(mod1, mod2, mod3, mod4, mod5, .pred = "y")
+  data_grid(pKa = seq_range(pKa, n = 50, expand = 0.1)) %>%
+  gather_predictions(mod1, mod2, mod3, mod4, mod5)
 
 # residuals 
 model_df <- model_df %>%
@@ -56,28 +55,42 @@ model_df <- model_df %>%
   add_residuals(mod5, "resid5")
 
 # plot grid search
-ggplot(model_df, aes(x, y)) + 
+ggplot(model_df, aes(pKa, concentration)) + 
   geom_point() +
-  geom_line(data = grid, colour = "red") +
+  geom_line(aes(y=pred), data = grid, colour = "red") +
   facet_wrap(~ model)
 
 # plot residuals
-ggplot(model_df, aes(x, resid1)) + 
-  geom_point()
-ggplot(model_df, aes(x, resid2)) + 
-  geom_point()
-ggplot(model_df, aes(x, resid3)) + 
-  geom_point()
-ggplot(model_df, aes(x, resid4)) + 
-  geom_point()
-ggplot(model_df, aes(x, resid5)) + 
-  geom_point()
+ggplot(model_df, aes(pKa, resid1)) + 
+  geom_point() +
+  geom_ref_line(h = 0)
+ggplot(model_df, aes(pKa, resid2)) + 
+  geom_point() +
+  geom_ref_line(h = 0)
+ggplot(model_df, aes(pKa, resid3)) + 
+  geom_point() +
+  geom_ref_line(h = 0)
+ggplot(model_df, aes(pKa, resid4)) + 
+  geom_point() +
+  geom_ref_line(h = 0)
+ggplot(model_df, aes(pKa, resid5)) + 
+  geom_point() +
+  geom_ref_line(h = 0)
 
 
 
 
 
 
+
+
+
+# create variable for formula
+my_formula <- concentration ~ poly(pKa, 5)
+coef(mod5)
+
+# filter grid for model
+my_grid <- grid %>% filter(model == "mod5")
 
 # create named vector for custom colors (19)
 lipids <- unique(df$lipid)
@@ -85,12 +98,11 @@ MyColors <- colorRampPalette(c(rev(brewer.pal(9, "YlOrRd")), brewer.pal(9, "YlGn
 names(MyColors) <- lipids
 
 # function for linear regression curve
-linear_regression <- function(i, j){
+linear_regression <- function(i, j, k){
   df=i %>% filter(tissue == j)
   ggplot(df, aes_string(y = "concentration", x = "pKa")) + 
     geom_point(aes_string(color = "lipid"), size = 2.5) +
-    stat_smooth(method = "lm", formula = y ~ ns(x, 5), se = FALSE, size = 1) +
-    ggpubr::stat_regline_equation(formula = y ~ ns(x, 5)) +
+    geom_line(aes(y=pred), data = my_grid, colour = "red") +
     scale_color_manual(values = MyColors) +
     theme_bw() + 
     labs(x = "pKa", y = "Relative fold change", color = "lipid") +
@@ -98,31 +110,40 @@ linear_regression <- function(i, j){
     theme(strip.background = element_rect(fill = NA, color = NA), strip.text = element_text(face = "bold", size = 15), axis.ticks.x = element_blank(), axis.text = element_text(color = "black", size = 15), axis.text.x = element_text(size = 15), axis.title.y = element_text(vjust = 0.5, size = 15), axis.title.x = element_text(vjust = 0.5, size = 15), legend.title = element_text(size = 15), legend.text = element_text(size = 10))
 }
 
-ggsave(linear_regression(df, "liver"), filename = "~/acuitas/export/linear_regression_liver.png", height = 8, width = 16)
-ggsave(linear_regression(df, "spleen"), filename = "~/acuitas/export/linear_regression_spleen.png", height = 8, width = 16)
+# save plot (make sure to remake model based on metadata)
+ggsave(linear_regression(df, "liver", my_formula), filename = "~/acuitas/export/linear_regression_liver.png", height = 8, width = 16)
+ggsave(linear_regression(df, "spleen", my_formula), filename = "~/acuitas/export/linear_regression_spleen.png", height = 8, width = 16)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # create named vector for colors
 dose <- unique(df$dose)
 MyColors <- brewer.pal(9, "Set1")[1:2]
 names(MyColors) <- dose
 
-# function for linear regression curve combined
 linear_regression_combined <- function(i, j){
   df=i %>% filter(tissue == j)
   ggplot(df, aes_string(y = "concentration", x = "pKa", color = "dose")) + 
     geom_point(aes_string(color = "dose"), size = 2.5) +
-    stat_smooth(method = "lm", formula = y ~ ns(x, 5), se = FALSE, size = 1) +
-    ggpubr::stat_regline_equation(formula = y ~ ns(x, 5)) +
+    stat_smooth(method = "lm", formula = y ~ poly(x, 5), se = FALSE, size = 1) +
+    ggpubr::stat_regline_equation(formula = y ~ poly(x, 5)) +
     scale_color_manual(values = MyColors) +
     theme_bw() + 
     labs(x = "pKa", y = "Relative fold change", color = "dose") +
     theme(strip.background = element_rect(fill = NA, color = NA), strip.text = element_text(face = "bold", size = 15), axis.ticks.x = element_blank(), axis.text = element_text(color = "black", size = 15), axis.text.x = element_text(size = 15), axis.title.y = element_text(vjust = 0.5, size = 15), axis.title.x = element_text(vjust = 0.5, size = 15), legend.title = element_text(size = 15), legend.text = element_text(size = 10))
 }
 
-ggsave(linear_regression_combined(df, "liver"), filename = "~/acuitas/export/linear_regression_liver2.png", height = 8, width = 8)
-ggsave(linear_regression_combined(df, "spleen"), filename = "~/acuitas/export/linear_regression_spleen2.png", height = 8, width = 8)
-
-
-
-
-
+# save plot 
+ggsave(linear_regression_combined(df, "liver"), filename = "~/acuitas/export/linear_regression_liver2.png", height = 8, width = 16)
+ggsave(linear_regression_combined(df, "spleen"), filename = "~/acuitas/export/linear_regression_spleen2.png", height = 8, width = 16)
